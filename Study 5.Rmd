@@ -1,0 +1,1188 @@
+---
+title: "Study 5 (in progress)"
+author: "SMK"
+date: "07/06/2022"
+output: rmdformats::material
+---
+
+***
+# Packages Used
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+library(apaTables)
+library(gt)
+library(sjPlot)
+library(rmdformats)
+library(psych)
+library(gtsummary)
+library(ggplot2)
+library(ggcorrplot)
+library(QuantPsyc)
+library(lavaan)
+library(semPlot)
+library(BaylorEdPsych)
+library(tidySEM)
+library(sjmisc)
+library(broom)
+library(knitr)
+library(effects)
+library(multcomp)
+library(haven)
+```
+
+***
+# Dataset
+```{r warning=FALSE, message=FALSE}
+setwd("C:\\Users\\sarah\\Documents\\PhD\\All data files")
+poriginaldata <- read.csv("Study 5 Prolific.csv",header =TRUE)
+goriginaldata <-read.csv("Study 5 Gen pop.csv",header =TRUE)
+```
+
+# Variables
+```{r warning=FALSE, message=FALSE}
+names(poriginaldata)
+```
+
+```{r warning=FALSE, message=FALSE}
+names(goriginaldata)
+```
+***
+# Data Cleaning 
+
+## Step 1: Remove ineligible participants {.tabset}
+(Prolific - this is anyone who's residency is less than 5 years, General - this is anyone who answered no to screen)
+Unnecessary variables will then be removed.
+
+### Prolific
+```{r warning=FALSE, message=FALSE}
+ptidydata <- poriginaldata[!(poriginaldata$Residency< 5),]
+pdata<-ptidydata[-c(1:4,6:13)]
+```
+### General
+```{r warning=FALSE, message=FALSE}
+gtidydata <- goriginaldata[!(goriginaldata$Screen> 4),]
+gdata<-gtidydata[-c(1:4,6:12)]
+```
+
+## Step 2: Combine data files and create composite variables
+```{r warning=FALSE, message=FALSE}
+alldata <- rbind(pdata,gdata)
+
+SAtotal<-alldata$SA1 + alldata$SA2 + alldata$SA3 + alldata$SA4
+LItotal<-alldata$LI1 + alldata$LI2 + alldata$LI3 + alldata$LI4 + alldata$LI5 
+NRtotal<-alldata$NR1 + alldata$NR2 + alldata$NR4 + alldata$NR5
+MTtotal<-alldata$MT1 + alldata$MT2 + alldata$MT3 + alldata$MT4 + alldata$MT5 + alldata$MT6
+RMAtotal<-SAtotal+LItotal+NRtotal+MTtotal
+fulldata<-cbind(alldata, SAtotal, LItotal, NRtotal, MTtotal, RMAtotal)
+```
+
+## Step 3: Remove cases with over 7% missing data
+```{r warning=FALSE, message=FALSE}
+cleandata<-fulldata
+percentmiss<- function(x){sum(is.na(x))/length(x)*100}
+missing= apply(cleandata, 1, percentmiss)
+table(missing)
+nomissing<-cleandata[missing<7,]
+summary(is.na(nomissing))
+```
+
+## Step 4: Remove failed attention checks
+```{r warning=FALSE, message=FALSE}
+cleanerdata<-nomissing
+Fail1<-(cleanerdata$Attn1!=6)
+Fail2<-(cleanerdata$Attn2!=3)
+Fail3<-(cleanerdata$Attn3!=4)
+Totalfail<-(Fail1 & Fail2 & Fail3)
+
+cleanestdata<-cleanerdata[-Totalfail,]
+```
+
+## Step 5: Remove multivariate outliers 
+This analysis will ignore demographic variables and individual scale items, plus the RMA composite score for an accurate mahalanobis distance score
+```{r warning=FALSE, message=FALSE}
+mahal<- mahalanobis(cleanestdata[,c(34,50:60)], colMeans(cleanestdata[,c(34,50:60)],na.rm = TRUE),cov(cleanestdata[,c(34,50:60)], use = "pairwise.complete.obs"))
+cutoff<- qchisq(.999,ncol(cleanestdata[,c(34,50:60)]))
+cutoff
+summary(mahal<cutoff)
+```
+
+```{r warning=FALSE, message=FALSE}
+finaldata<-cleanestdata[mahal<cutoff,]
+
+```
+
+***
+
+# Additional variables
+
+## Condition
+```{r warning=FALSE, message=FALSE}
+finaldata$Con_time[is.na(finaldata$Con_time)]<-0
+Condition<- ifelse(finaldata$Con_time>"0",0,1)
+Condition[is.na(Condition)] <- 1
+```
+
+## Consent
+```{r warning=FALSE, message=FALSE}
+C1dum<-ifelse(finaldata$C1 == '6', 1, 0)
+C2dum<-ifelse(finaldata$C2 == '3', 1, 0)
+C3dum<-ifelse(finaldata$C3 == '4', 1, 0)
+C4dum<-ifelse(finaldata$C4 == '2', 1, 0)
+C5dum<-ifelse(finaldata$C5 == '2', 1, 0)
+C6dum<-ifelse(finaldata$C6 == '3', 1, 0)
+C7dum<-ifelse(finaldata$C7 == '1', 1, 0)
+C8dum<-ifelse(finaldata$C8 == '4', 1, 0)
+C9dum<-ifelse(finaldata$C9 == '3', 1, 0)
+C10dum<-ifelse(finaldata$C10 == '1', 1, 0)
+ConsentScore<- C1dum+C2dum+C3dum+C4dum+C5dum+C6dum+C7dum+C8dum+C9dum+C10dum
+
+```
+
+## Subset with outliers
+```{r}
+cleanestdata$Con_time[is.na(cleanestdata$Con_time)]<-0
+Conditions<- ifelse(cleanestdata$Con_time>"0",0,1)
+Conditions[is.na(Conditions)] <- 1
+C1<-ifelse(cleanestdata$C1 == '6', 1, 0)
+C2<-ifelse(cleanestdata$C2 == '3', 1, 0)
+C3<-ifelse(cleanestdata$C3 == '4', 1, 0)
+C4<-ifelse(cleanestdata$C4 == '2', 1, 0)
+C5<-ifelse(cleanestdata$C5 == '2', 1, 0)
+C6<-ifelse(cleanestdata$C6 == '3', 1, 0)
+C7<-ifelse(cleanestdata$C7 == '1', 1, 0)
+C8<-ifelse(cleanestdata$C8 == '4', 1, 0)
+C9<-ifelse(cleanestdata$C9 == '3', 1, 0)
+C10<-ifelse(cleanestdata$C10 == '1', 1, 0)
+ConsentTotal<- C1+C2+C3+C4+C5+C6+C7+C8+C9+C10
+fulldf<-cbind(cleanestdata, Conditions, ConsentTotal)
+fulldata<-fulldf[,c(34:39,50:63)]
+```
+
+
+## Subsets for analysis
+```{r}
+df<-cbind(finaldata, Condition, ConsentScore)
+write_sav(df, "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data\\Rfinaldata.sav")
+write.csv(df, "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data\\finaldataR5.csv")
+dataset<-df[,c(34:39,50:63)]
+data<-df[,c(34:39,50:63)]
+datas<-df[,c(2:7,16,18:21,24:29,50:63)]
+control<-data[(data$Condition==0),]
+intervention<-data[(data$Condition==1),]
+```
+
+Final dataset has 394 participants
+Full dataset has 410 participants
+
+## Factoring
+```{r warning=FALSE, message=FALSE}
+dataset$Gender= factor(dataset$Gender,levels = c(1,2,3,4,5,6),labels = c("male","female","trans male", "trans female", "genderqueer", "different identity"))
+dataset$Ethnicity= factor(dataset$Ethnicity,levels = c(1:14),labels = c("White Caucasian","White Mexican","White Sephardic Jew", "East Asian", "South Asian", "Middle Eastern", "Native American", "Latino/Hispanic", "Caribbean", "Black British", "African", "Black African American", "Mixed", "Other"))
+dataset$Sexuality= factor(dataset$Sexuality,levels = c(1,2,3,4,5),labels = c("heterosexual","bisexual","homosexual", "asexual", "other sexuality"))
+dataset$Victim_known= factor(dataset$Victim_known,levels = c(0,1,2,3),labels = c("prefer not to answer","don't know victim","friend or family member victim", "victim themself"))
+dataset$False_acc_known= factor(dataset$False_acc_known,levels = c(0,1,2,3),labels = c("prefer not to answer","don't know accused","friend or family member accused", "accused themself"))
+dataset$Verdict= factor(dataset$Verdict,levels = c(0,1),labels = c("Not Guilty", "Guilty"))
+dataset$Likert_verdict= factor(dataset$Likert_verdict,levels = c(1,2,3,4,5,6,7),labels = c("Completely unlikely", "Moderately unlikely", "Slightly unlikely", "Neither likely nor unlikely", "Slightly likely", "Moderately likely", "Completely likely"))
+dataset$Credibility= factor(dataset$Credibility,levels = c(1,2,3,4,5,6,7),labels = c("Completely incredible", "Moderately incredible", "Slightly incredible", "Neither credible nor incredible", "Slightly credible", "Moderately credible", "Completely credible"))
+dataset$Responsibility= factor(dataset$Responsibility,levels = c(1,2,3,4,5,6,7),labels = c("Completely unresponsible", "Moderately unresponsible", "Slightly unresponsible", "Neither responsible nor unresponsible", "Slightly responsible", "Moderately responsible", "Completely responsible"))
+dataset$Empathy= factor(dataset$Empathy,levels = c(1,2,3,4,5),labels = c("Not at all", "Slightly", "Moderately", "A lot", "Completely"))
+dataset$Condition=factor(dataset$Condition,levels= c(0,1),labels= c("Control", "Intervention"))
+```
+***
+# Descriptive Statistics
+
+```{r}
+dataset %>%
+  dplyr::select(Gender, Ethnicity, Sexuality, Victim_known, False_acc_known )%>%
+  tbl_summary(
+    label= list(Gender ~ "Gender",Ethnicity ~ "Ethnicity", Sexuality~ "Sexual Orientation", Victim_known~ "Rape victim known", False_acc_known~ "False accusation known")) %>%
+  modify_caption("<div style='text-align: left;font-weight: bold'> Table 1.<br> Demographic Statistics</div>")
+```
+
+```{r}
+describe(data[,c(7:18,20)], fast=T)
+```
+
+```{r}
+describe.by(data[,c(7:20)], fast=T, group ="Condition")
+```
+
+## Age
+```{r warning=FALSE, message=FALSE}
+dataset%>%
+  summarise(Variable= "Age",
+            Mean=mean(Age, na.rm = TRUE),
+            Median= median(Age, na.rm = TRUE),
+            SD= sd(Age, na.rm = TRUE))
+```
+
+## Victim 
+```{r warning=FALSE, message=FALSE}
+v<-ggplot(data=dataset, aes(Victim_known))
+v+geom_histogram(stat="Count", aes(fill=as.factor(Victim_known))) +
+  theme_classic(base_size = 10,base_family = "Times") + 
+  labs( title = "Victim known", x = "Victim known", y= "Frequency" ) +
+   theme(axis.text.x = element_text(angle = 20, hjust=1)) +
+  scale_fill_brewer(palette="PRGn")
+```
+
+
+## False allegations 
+```{r warning=FALSE, message=FALSE}
+f<-ggplot(data=dataset, aes(False_acc_known))
+f+ geom_histogram(stat="Count",  aes(fill=as.factor(False_acc_known))) +
+    theme_classic(base_size = 10,base_family = "Times") + 
+    labs( title = "False Accusation Known", x = "False Accusation Known", y=  "Frequency" ) +
+    theme(axis.text.x = element_text(angle = 20, hjust=1)) +
+    scale_fill_brewer(palette="YlGnBu")
+```
+
+
+
+## U-IRMA Reliability analysis 
+```{r warning=FALSE, message=FALSE}
+fullscale<- df[,c(2:8, 10,11, 13:16, 18:21, 24:29)]
+alpha(fullscale)
+correctscale<- df[,c(2:5,8,10,11, 13:16, 18,20,21, 24:29)]
+alpha(correctscale)
+```
+
+# Dependent variables {.tabset}
+
+## Dichotomous Verdict
+```{r warning=FALSE, message=FALSE}
+table(dataset$Verdict)
+Ver<-table(dataset$Verdict)
+percent<-Ver/467
+percent
+barplot(Ver, col= grey.colors(2), main = "Verdict")
+```
+
+## Likert Verdict
+```{r warning=FALSE, message=FALSE}
+
+lv<-ggplot(data=dataset, aes(Likert_verdict))
+lvg<-lv+  geom_histogram(stat="Count", aes(fill=as.factor(Likert_verdict))) +
+  theme_classic(base_size = 10,base_family = "Times") + ylim(c(0,140))+
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs( title = "Likert Verdict", x = "Likelihood of defendent's guilt", y= "Frequency")+ 
+  scale_fill_brewer(palette="Greys")
+```
+
+### Credibility
+```{r warning=FALSE, message=FALSE}
+dataset%>%
+  dplyr::select(Credibility)%>%
+  tbl_summary()
+
+cr<-ggplot(data=dataset, aes(Credibility))
+crg<-cr+  geom_histogram(stat="Count", aes(fill=as.factor(Credibility))) +
+  theme_classic(base_size = 10,base_family = "Times") + 
+  scale_y_continuous( breaks= seq(0,150,25)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs( title = "Credibility", x = "Credibility Rating", y= "Frequency" )+
+  scale_fill_brewer(palette="Greys")
+
+```
+
+### Responsibility
+```{r warning=FALSE, message=FALSE}
+dataset%>%
+  dplyr::select(Responsibility)%>%
+  tbl_summary()
+
+re<-ggplot(data=dataset, aes(Responsibility))
+regraph<-re+  geom_histogram(stat="Count", aes(fill=as.factor(Responsibility))) +
+  theme_classic(base_size = 10,base_family = "Times") + ylim(c(0,120))+
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(title = "Responsibility", x = "Responsibility rating", y= "Frequency" )+
+  scale_fill_brewer(palette="Greys", direction = -1)
+
+```
+
+### Empathy
+```{r warning=FALSE, message=FALSE}
+dataset%>%
+  dplyr::select(Empathy)%>%
+  tbl_summary()
+
+em<-ggplot(data=dataset, aes(Empathy))
+emg<-em+  geom_histogram(stat="Count", aes(fill=as.factor(Empathy))) +
+  theme_classic(base_size = 10,base_family = "Times") + ylim(c(0,120))+
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(title = "Empathy", x = "Empathy rating", y= "Frequency" ) +
+  scale_fill_brewer(palette="Greys")
+
+```
+
+***
+# Correlation Matrix
+```{r}
+cordata<-data[,c(3:6,8:18,20)]
+tab_corr(cordata, p.numeric = TRUE, triangle = "lower")
+```
+
+## Scatterplot Matrix
+```{r warning=FALSE, message=FALSE}
+corr<-round(cor(data),2)
+ggcorrplot(corr,type = "lower", 
+           lab = TRUE, 
+           lab_size = 3, 
+           method="circle",
+           colors= c("deepskyblue4","white","green4"),
+           ggtheme=theme_classic (base_family = "Times", base_size = 10)) 
+```
+
+***
+
+# Mean Comparison
+
+Comparing samples
+```{r warning=FALSE, message=FALSE}
+options(scipen = 999)
+lapply(data[,c(3:6)], function(x)t.test(x~Condition,var.eq=F, options(digits=5)))
+```
+
+Comparing outcomes
+```{r}
+options(scipen=999)
+
+conttest<-lapply(data[,c(8:18,20)],function(x)t.test(x~dataset$Condition,var.eq=F))
+contable<-map_df(conttest, broom::tidy, .id="var")
+print.data.frame(contable)
+
+tvalues<-contable$statistic
+eta<-function(x){(x*x)/(x*x+(n-1))}
+n=393
+eta(tvalues)
+
+```
+
+Effect size
+```{r warning=FALSE, message=FALSE}
+tvalues<-c(-3.41,-2.01,-1.11,-2.64,2.74,-2.87,0.89,-4.06)
+eta<-function(x){(x*x)/(x*x+(n-1))}
+n=393
+eta(tvalues)
+```
+
+```{r}
+sapply(control,sd)
+```
+```{r}
+sapply(intervention,sd)
+```
+
+
+## Chi-square
+### Gender
+```{r warning=FALSE, message=FALSE}
+sex<-factor(data$Gender,levels = c(1,2),labels = c( "Male","Female"))
+chitable<-table(sex,dataset$Condition)
+barplot(chitable, beside=T, legend=T)
+chisq.test(chitable, correct = T)
+
+```
+
+### Verdict
+```{r warning=FALSE, message=FALSE}
+chitable2<-table(dataset$Verdict,dataset$Condition)
+chitable2
+barplot(chitable2, beside=T, legend=T)
+chisq.test(chitable2, correct = T)
+```
+
+***
+
+# Logistic regression 
+
+## Control condition
+```{r warning=FALSE, message=FALSE}
+options(scipen = 999)
+controlmodel<-glm(Verdict~ SAtotal + LItotal + NRtotal + Credibility + Responsibility + Empathy, family = binomial(link = logit), data= control)
+summary(controlmodel)
+controlmodel%>%
+  tbl_regression(exponentiate = TRUE)%>% add_vif()
+```
+
+The test below checks whether the change in errors is significantly less for the model without predictors. 
+```{r warning=FALSE, message=FALSE}
+options(scipen = 999)
+chidiff<-controlmodel$null.deviance-controlmodel$deviance
+dfdiff<-controlmodel$df.null-controlmodel$df.residual
+chidiff
+dfdiff
+pchisq(chidiff, dfdiff, lower.tail = F)
+```
+
+```{r warning=FALSE, message=FALSE}
+PseudoR2(controlmodel)
+```
+
+```{r warning=FALSE, message=FALSE}
+correctc<-controlmodel$fitted.values
+binarycorrectc<-ifelse(correctc>0.5,1,0)
+binarycorrectc<-factor(binarycorrectc, levels=c(0,1), labels=c("Not Predicted","Predicted"))
+table(control$Verdict, binarycorrectc)
+```
+
+Creating equal number for intervention group (i.e. removing 4)
+```{r}
+evenintervention<-intervention[c(1:195),]
+```
+
+
+
+## Intervention condition
+```{r warning=FALSE, message=FALSE}
+options(scipen = 999)
+intmodel<-glm(Verdict~ SAtotal + LItotal + NRtotal + Credibility + Responsibility + Empathy, family = binomial(link = logit), data= intervention)
+summary(intmodel)
+intmodel%>%
+  tbl_regression(exponentiate = TRUE)%>% add_vif()
+```
+
+```{r}
+options(scipen = 999)
+chidiffint<-intmodel$null.deviance-intmodel$deviance
+dfdiffint<-intmodel$df.null-intmodel$df.residual
+chidiffint
+dfdiffint
+pchisq(chidiffint, dfdiffint, lower.tail = F)
+
+```
+
+```{r}
+PseudoR2(intmodel)
+```
+
+```{r}
+correcti<-intmodel$fitted.values
+binarycorrecti<-ifelse(correcti>0.5,1,0)
+binarycorrecti<-factor(binarycorrecti, levels=c(0,1), labels=c("Not Predicted","Predicted"))
+table(intervention$Verdict, binarycorrecti)
+
+```
+
+
+
+# Hierarchical regression
+
+## Control condition
+
+### Step 1
+```{r warning=FALSE, message=FALSE}
+regoutput1c=lm(Likert_verdict~Gender+Confidence,control)
+summary(regoutput1c)
+lm.beta(regoutput1c)
+apa.reg.table(regoutput1c)
+
+```
+
+## Step 2
+```{r warning=FALSE, message=FALSE}
+regoutput2c=lm(Likert_verdict~Gender+Confidence+SAtotal+NRtotal+LItotal,control)
+summary(regoutput2c)
+lm.beta(regoutput2c)
+apa.reg.table(regoutput2c)
+```
+
+## Step 3
+```{r warning=FALSE, message=FALSE}
+regoutput3c=lm(Likert_verdict~Gender+Confidence+SAtotal+NRtotal+LItotal+Credibility+Responsibility+Empathy,control)
+summary(regoutput3c)
+lm.beta(regoutput3c)
+```
+
+### Regression Model comparison
+```{r warning=FALSE, message=FALSE}
+anova(regoutput1c,regoutput2c)
+anova(regoutput1c,regoutput2c,regoutput3c)
+apa.reg.table(regoutput3c)
+```
+
+## Intervention condition
+### Step 1
+```{r}
+regoutput1i=lm(Likert_verdict~Gender+Confidence,intervention)
+summary(regoutput1i)
+lm.beta(regoutput1i)
+apa.reg.table(regoutput1i)
+```
+
+### Step 2
+```{r}
+regoutput2i=lm(Likert_verdict~Gender+Confidence+SAtotal+NRtotal+LItotal,intervention)
+summary(regoutput2i)
+lm.beta(regoutput2i)
+apa.reg.table(regoutput2i)
+
+```
+
+### Step 3
+```{r}
+
+regoutput3i=lm(Likert_verdict~Gender+Confidence+SAtotal+NRtotal+LItotal+Credibility+Responsibility+Empathy,intervention)
+summary(regoutput3i)
+lm.beta(regoutput3i)
+```
+
+### Regression model comparison
+```{r}
+anova(regoutput1i,regoutput2i)
+anova(regoutput1i,regoutput2i,regoutput3i)
+apa.reg.table(regoutput3i)
+```
+
+***
+
+# Moderation
+
+## Variables and dataset
+```{r}
+Cond<-rec(data$Condition, rec="0=-0.5;1=0.5")
+LI_c<-data$LItotal-mean(data$LItotal)
+SA_c<-data$SAtotal-mean(data$SAtotal)
+NR_c<-data$NRtotal-mean(data$NRtotal)
+Condition<-data$Condition
+Cred<-data$Credibility
+Resp<-data$Responsibility
+Emp<-data$Empathy
+
+LI_cond<-LI_c*Condition
+SA_cond<-SA_c*Condition
+NR_cond<-NR_c*Condition
+
+```
+
+
+```{r}
+moddata<-data[,c(11:16,19)]
+moddata<-cbind(moddata, LI_c, SA_c, NR_c, LI_cond, SA_cond, NR_cond)
+```
+
+## Credibility 
+```{r}
+mod1<-' 
+Credibility~a1*LI_c
+Credibility~a2*Condition
+Credibility~a3*LI_cond
+'
+```
+
+```{r}
+set.seed(2020)
+
+modfit1<-sem(mod1,data=moddata,se="bootstrap", bootstrap=5000, ordered = c("Condition"), estimator= "DWLS")
+```
+
+Model 1 analysis
+```{r}
+summary (modfit1, standardize = TRUE, rsquare = TRUE, fit.measures=TRUE)
+parameterestimates(modfit1,boot.ci.type = "bca.simple", standardized = TRUE)%>%
+  kable()
+```
+
+
+
+
+## Responsibility
+```{r}
+mod2<-' 
+Responsibility~a1*SA_c
+Responsibility~a2*Condition
+Responsibility~a3*SA_cond
+'
+```
+
+```{r}
+set.seed(2021)
+
+modfit2<-sem(mod2,data=moddata,se="bootstrap", bootstrap=5000, ordered = c("Condition"), estimator= "DWLS")
+```
+
+Model 2 analysis
+```{r}
+summary (modfit2, standardize = TRUE, rsquare = TRUE, fit.measures=TRUE)
+parameterestimates(modfit2,boot.ci.type = "bca.simple", standardized = TRUE)%>%
+  kable()
+```
+
+
+
+
+
+
+
+## Empathy
+
+```{r}
+mod3<-' 
+Empathy~a1*NR_c
+Empathy~a2*Condition
+Empathy~a3*NR_cond
+'
+```
+
+```{r}
+set.seed(2022)
+
+modfit3<-sem(mod3,data=moddata,se="bootstrap", bootstrap=5000, ordered = c("Condition"), estimator= "DWLS")
+```
+
+Model 3 analysis
+```{r}
+summary (modfit3, standardize = TRUE, rsquare = TRUE, fit.measures=TRUE)
+parameterestimates(modfit3,boot.ci.type = "bca.simple", standardized = TRUE)%>%
+  kable()
+```
+***
+# Mediation model group comparision
+```{r warning=FALSE}
+groupmed1 <- '
+    # direct effect
+      Verdict ~ c(cg1, cg2)*LItotal
+  
+    # mediation
+      Credibility ~ a(ag1,ag2)*LItotal
+      Verdict ~ b(bg1,bg2)*Credibility
+  
+    # indirect effect (a*b)
+      abg1 := ag1*bg1 
+      abg2 := ag2*bg2 
+
+    # total effect
+      totalg1 := cg1 + (ag1*bg1)
+      totalg2 := cg2 + (ag2*bg2)
+'
+
+groupcredmed <- sem(groupmed1, data = data, ordered = "Verdict", group= "Condition", se = "bootstrap", bootstrap = 1000, estimator= "DWLS")
+```
+
+```{r}
+summary(groupcredmed, standardize = TRUE, rsquare = TRUE, fit.measures= TRUE)
+```
+
+```{r}
+all.constraints<- 'ag1 == ag2
+                  bg1 == bg2
+                  cg1 == cg2'
+
+lavTestWald(groupcredmed, constraints = all.constraints)
+```
+
+```{r}
+lavTestWald(groupcredmed, constraints = "ag1==ag2")
+```
+
+```{r}
+lavTestWald(groupcredmed, constraints = "bg1==bg2")
+```
+
+```{r}
+lavTestWald(groupcredmed, constraints = "cg1==cg2")
+```
+
+Responsibility
+```{r warning=FALSE}
+groupmed2 <- '
+    # direct effect
+      Verdict ~ c(crg1, crg2)*SAtotal
+  
+    # mediation
+      Responsibility ~ a(arg1,arg2)*SAtotal
+      Verdict ~ b(brg1,brg2)*Responsibility
+  
+    # indirect effect (a*b)
+      rabg1 := arg1*brg1 
+      rabg2 := arg2*brg2 
+
+    # total effect
+      totalg1 := crg1 + (arg1*brg1)
+      totalg2 := crg2 + (arg2*brg2)
+'
+
+grouprespmed <- sem(groupmed2, data = data, ordered = "Verdict", group= "Condition", se = "bootstrap", bootstrap = 1000, estimator= "DWLS")
+```
+
+```{r}
+summary(grouprespmed, standardize = TRUE, rsquare = TRUE, fit.measures= TRUE)
+```
+
+```{r}
+all.constraints<- 'arg1 == arg2
+                  brg1 == brg2
+                  crg1 == crg2'
+
+lavTestWald(grouprespmed, constraints = all.constraints)
+```
+
+```{r}
+lavTestWald(grouprespmed, constraints = "arg1==arg2")
+```
+
+```{r}
+lavTestWald(grouprespmed, constraints = "brg1==brg2")
+```
+
+```{r}
+lavTestWald(grouprespmed, constraints = "crg1==crg2")
+```
+
+
+empathy
+
+```{r warning=FALSE}
+groupmed3 <- '
+    # direct effect
+      Verdict ~ c(ceg1, ceg2)*NRtotal
+  
+    # mediation
+      Empathy ~ a(aeg1,aeg2)*NRtotal
+      Verdict ~ b(beg1,beg2)*Empathy
+  
+    # indirect effect (a*b)
+      eabg1 := aeg1*beg1 
+      eabg2 := aeg2*beg2 
+
+    # total effect
+      etotalg1 := ceg1 + (aeg1*beg1)
+      etotalg2 := ceg2 + (aeg2*beg2)
+'
+
+groupempmed <- sem(groupmed3, data = data, ordered = "Verdict", group= "Condition", se = "bootstrap", bootstrap = 1000, estimator= "DWLS")
+summary(groupempmed, standardize = TRUE, rsquare = TRUE, fit.measures= TRUE)
+```
+
+```{r}
+all.constraints<- 'aeg1 == aeg2
+                  beg1 == beg2
+                  ceg1 == ceg2'
+
+lavTestWald(groupempmed, constraints = all.constraints)
+```
+
+```{r}
+lavTestWald(groupempmed, constraints = "aeg1==aeg2")
+```
+
+```{r}
+lavTestWald(groupempmed, constraints = "beg1==beg2")
+```
+
+```{r}
+lavTestWald(groupempmed, constraints = "ceg1==ceg2")
+```
+***
+
+# Moderated-Mediation analyses
+```{r}
+Cred_c<-data$Credibility-mean(data$Credibility)
+Resp_c<-data$Responsibility-mean(data$Responsibility)
+Emp_c<-data$Empathy-mean(data$Empathy)
+Verdict<-data$Verdict
+LikVer<-data$Likert_verdict
+Cond<-rec(data$Condition, rec="0=-0.5;1=0.5")
+IntLI<-LI_c*Cond
+IntSA<-SA_c*Cond
+IntNR<-NR_c*Cond
+meddata<-cbind(moddata, Cred_c, Resp_c, Emp_c, Verdict, LikVer, Cond, IntLI, IntSA, IntNR)
+```
+
+```{r}
+write.csv(meddata,"C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data\\meddata.csv")
+```
+
+
+## Credibility 
+
+```{r}
+med1<-' #a path
+Cred_c~a1*LI_c
+Cred_c~a2*Cond
+Cred_c~a3*IntLI
+
+#b path
+Verdict~b1*Cred_c
+
+#c prime path
+Verdict~cp*LI_c
+
+#Modmed index
+b1a3:=b1*a3
+
+#conditional indirect effects
+lowss:=a1+a3*-0.5
+highss:=a1+a3*0.5
+low:=a1*b1+b1a3*-0.5
+high:=a1*b1+b1a3*0.5'
+```
+
+
+fit model
+```{r}
+set.seed(1432)
+modmed1<-sem(med1,data=meddata,se="bootstrap", bootstrap=5000, ordered = c("Verdict", "Condition"), estimator= "DWLS")
+```
+
+```{r}
+summary (modmed1, standardize = TRUE, rsquare = TRUE, fit.measures=TRUE)
+parameterestimates(modmed1,boot.ci.type = "bca.simple", standardized = TRUE)%>%
+  kable()
+```
+## Modmed plots
+```{r}
+summary(data$LItotal)
+sd(data$LItotal)
+credlm <- lm(Credibility ~ LItotal * Condition, data = data)
+
+mod_table1 <- effect(term = "LItotal:Condition", mod = credlm, x.var = "LItotal", xlevels = list(Condition = c(0,1), LI_c=seq(6,40,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+condition <- Condition %>% recode(`0` = "Control", `1` = "Intervention")
+kable(mod_table1)
+```
+
+
+```{r}
+ssc<-meddata %>% 
+  ggplot(mapping = aes(x = LItotal, y = Credibility)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = mod_table1, mapping = aes(x = LItotal, y = fit, linetype = condition)) +
+  geom_ribbon(data = mod_table1, mapping = aes(x = LItotal, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(moddata$LI_c)) +
+  scale_y_continuous(breaks = pretty(moddata$Credibility)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  labs(x = "Total LI scores", y= "Credibility") +
+  theme(legend.position = "right")
+
+ssc
+ssplot1<-ssc
+ggsave("ssplot1.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+```{r}
+resplm <- lm(Responsibility ~ SAtotal * Condition, data = data)
+mod_table2 <- effect(term = "SAtotal:Condition", mod = resplm, x.var = "SAtotal", xlevels = list(Condition = c(0,1), SAtotal=seq(4,22,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+kable(mod_table2)
+```
+```{r}
+ssr<-meddata %>% 
+  ggplot(mapping = aes(x = SAtotal, y = Responsibility)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = mod_table2, mapping = aes(x = SAtotal, y = fit, linetype = condition)) +
+  geom_ribbon(data = mod_table2, mapping = aes(x = SAtotal, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(moddata$SA_c)) +
+  scale_y_continuous(breaks = pretty(moddata$Responsibility)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "right")
+
+ssr
+ssplot2<-ssr
+ggsave("ssplot2.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+```{r}
+emplm <- lm(Empathy ~ NRtotal * Condition, data = moddata)
+mod_table3 <- effect(term = "NRtotal:Condition", mod = emplm, x.var = "NRtotal", xlevels = list(Condition = c(0,1), NRtotal=seq(4,19,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+kable(mod_table3)
+```
+```{r}
+sse<-meddata %>% 
+  ggplot(mapping = aes(x = NRtotal, y = Empathy)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = mod_table3, mapping = aes(x = NRtotal, y = fit, linetype = condition)) +
+  geom_ribbon(data = mod_table3, mapping = aes(x = NRtotal, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(moddata$NR_c)) +
+  scale_y_continuous(breaks = pretty(moddata$Empathy)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "right")
+
+sse
+ssplot3<-sse
+ggsave("ssplot3.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+```{r}
+cvblm <- lm(Verdict ~ Credibility * Condition, data = data)
+cvblm_table <- effect(term = "Credibility:Condition", mod = cvblm, x.var = "Credibility", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+ssplot4<-data %>% 
+  ggplot(mapping = aes(x = Credibility, y = Verdict)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = cvblm_table, mapping = aes(x = Credibility, y = fit, linetype = condition)) +
+  geom_ribbon(data = cvblm_table, mapping = aes(x = Credibility, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Credibility)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("ssplot4.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+```{r}
+rvblm <- lm(Verdict ~ Responsibility * Condition, data = data)
+rvblm_table <- effect(term = "Responsibility:Condition", mod = rvblm, x.var = "Responsibility", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+ssplot5<-data %>% 
+  ggplot(mapping = aes(x = Responsibility, y = Verdict)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = rvblm_table, mapping = aes(x = Responsibility, y = fit, linetype = condition)) +
+  geom_ribbon(data = rvblm_table, mapping = aes(x = Responsibility, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Responsibility)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("ssplot5.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+```{r}
+evblm <- lm(Verdict ~ Empathy * Condition, data = data)
+evblm_table <- effect(term = "Empathy:Condition", mod = evblm, x.var = "Empathy", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+ssplot6<-data %>% 
+  ggplot(mapping = aes(x = Empathy, y = Verdict)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = evblm_table, mapping = aes(x = Empathy, y = fit, linetype = condition)) +
+  geom_ribbon(data = evblm_table, mapping = aes(x = Empathy, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Empathy)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("ssplot6.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+```{r}
+livlm <- lm(Verdict ~ LItotal * Condition, data = data)
+livlm_table <- effect(term = "LItotal:Condition", mod = livlm, x.var = "LItotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+ssplot7<-data %>% 
+  ggplot(mapping = aes(x = LItotal, y = Verdict)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = livlm_table, mapping = aes(x = LItotal, y = fit, linetype = condition)) +
+  geom_ribbon(data = livlm_table, mapping = aes(x = LItotal, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$LItotal)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("ssplot7.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+```{r}
+savlm <- lm(Verdict ~ SAtotal * Condition, data = data)
+savlm_table <- effect(term = "SAtotal:Condition", mod = savlm, x.var = "SAtotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+ssplot8<-data %>% 
+  ggplot(mapping = aes(x = SAtotal, y = Verdict)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = savlm_table, mapping = aes(x = SAtotal, y = fit, linetype = condition)) +
+  geom_ribbon(data = savlm_table, mapping = aes(x = SAtotal, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$SAtotal)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("ssplot8.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+```{r}
+nrvlm <- lm(Verdict ~ NRtotal * Condition, data = data)
+nrvlm_table <- effect(term = "NRtotal:Condition", mod = nrvlm, x.var = "NRtotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(condition = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+ssplot9<-data %>% 
+  ggplot(mapping = aes(x = NRtotal, y = Verdict)) +
+  geom_point(mapping = aes(color = condition)) +
+  geom_line(data = nrvlm_table, mapping = aes(x = NRtotal, y = fit, linetype = condition)) +
+  geom_ribbon(data = nrvlm_table, mapping = aes(x = NRtotal, y = fit, ymin = lower, ymax = upper, fill = condition), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$NRtotal)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("ssplot9.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+```{r}
+library(gridExtra)
+grid.arrange(ssplot1, ssplot2, ssplot3, ssplot4, ssplot5, ssplot6, ssplot7, ssplot8, ssplot9, ncol=3, nrow = 3)
+```
+
+
+## Responsibility
+
+```{r}
+med2 <- '
+#a path
+Resp_c~a1*SA_c
+Resp_c~a2*Cond
+Resp_c~a3*IntSA
+
+#b path
+Verdict~b1*Resp_c
+
+#c prime path
+Verdict~cp*SA_c
+
+#Modmed index
+b1a3:=b1*a3  
+
+#conditional indirect effects
+lowss:=a1+a3*-0.5
+highss:=a1+a3*0.5
+low:=a1*b1+b1a3*-0.5
+high:=a1*b1+b1a3*0.5
+'
+```
+
+```{r}
+set.seed(1543)
+modmed2<-sem(med2,data=meddata,se="bootstrap", bootstrap=5000, ordered = c("Verdict", "Condition"), estimator= "DWLS")
+```
+
+```{r}
+summary (modmed2, standardize = TRUE, rsquare = TRUE, fit.measures=TRUE)
+parameterestimates(modmed2,boot.ci.type = "bca.simple", standardized = TRUE)%>%
+  kable()
+```
+
+## Empathy
+
+```{r}
+med3 <- '
+#a path
+Emp_c~a1*NR_c
+Emp_c~a2*Cond
+Emp_c~a3*IntNR
+
+#b path
+Verdict~b1*Emp_c
+
+#c prime path
+Verdict~cp*NR_c
+
+#Modmed index
+b1a3:=b1*a3  
+
+#conditional indirect effects
+lowss:=a1+a3*-0.5
+highss:=a1+a3*0.5
+low:=a1*b1+b1a3*-0.5
+high:=a1*b1+b1a3*0.5
+'
+```
+
+```{r}
+set.seed(1654)
+modmed3<-sem(med3,data=meddata,se="bootstrap", bootstrap=5000, ordered = c("Verdict", "Condition"), estimator= "DWLS")
+```
+
+```{r}
+summary (modmed3, standardize = TRUE, rsquare = TRUE, fit.measures=TRUE)
+parameterestimates(modmed3,boot.ci.type = "bca.simple", standardized = TRUE)%>%
+  kable()
+```
+
+# Multigroup SEM
+```{r}
+Confidence<-datas$Confidence
+Confscale<-scale(Confidence, center=TRUE, scale=TRUE)
+semdata<-cbind(datas, Confscale)
+```
+
+```{r}
+SEMmodel<-'
+#measurement model
+LI=~1*LI1+LI2+LI3+LI4+LI5
+SA=~1*SA1+SA2+SA3+SA4
+NR=~1*NR1+NR2+NR4+NR5
+
+#regression equations
+Verdict~Credibility+Responsibility+Empathy
+Sentence~Verdict
+Credibility~Empathy
+
+Credibility~LI
+Responsibility~SA
+Empathy~NR
+
+#Estimating endogenous variables covariance
+SA~~LI+NR
+LI~~NR
+
+'
+```
+
+```{r}
+set.seed(1816)
+MGSEMmodel<-sem(SEMmodel, data=semdata, ordered = c("Verdict"), group= "Condition")
+summary(MGSEMmodel, fit.measures=TRUE)
+parameterestimates(MGSEMmodel, standardized = T)
+```
+
+
+## config
+```{r}
+set.seed(1816)
+configmodel<-sem(MGSEMmodel, data=semdata, ordered = c("Verdict"), group= "Condition")
+fitMeasures(configmodel,c("chisq", "df", "pvalue", "cfi","rmsea","srmr"))
+```
+## metric
+```{r warning=FALSE}
+set.seed(1816)
+metricmodel<-sem(MGSEMmodel, data=semdata, ordered = c("Verdict"), group= "Condition",  group.equal = "loadings")
+fitMeasures(metricmodel,c("chisq", "df", "pvalue", "cfi","rmsea","srmr"))
+```
+## scalar
+```{r warning=FALSE}
+set.seed(1816)
+scalarmodel<-sem(MGSEMmodel, data=semdata, ordered = c("Verdict"), group= "Condition",  group.equal =c("intercepts", "loadings"))
+fitMeasures(scalarmodel,c("chisq", "df", "pvalue", "cfi","rmsea","srmr"))
+```
+
+## strict
+```{r warning=FALSE}
+set.seed(1816)
+strictmodel<-sem(MGSEMmodel, data=semdata, ordered = c("Verdict"), group= "Condition",  group.equal =c("intercepts", "loadings", "residuals"))
+fitMeasures(strictmodel,c("chisq", "df", "pvalue", "cfi","rmsea","srmr"))
+```
+
+## compare
+```{r}
+lavTestLRT(configmodel, metricmodel, scalarmodel,strictmodel)
+```
+

@@ -1,0 +1,617 @@
+---
+title: "graphs"
+author: "SMK"
+date: "08/06/2022"
+output: html_document
+---
+# packages
+```{r}
+library(tidyverse)
+library(apaTables)
+library(gt)
+library(sjPlot)
+library(rmdformats)
+library(psych)
+library(gtsummary)
+library(ggplot2)
+library(ggcorrplot)
+library(QuantPsyc)
+library(lavaan)
+library(semPlot)
+library(BaylorEdPsych)
+library(tidySEM)
+library(sjmisc)
+library(broom)
+library(knitr)
+library(effects)
+library(multcomp)
+library(haven)
+```
+
+
+# Dataset
+```{r}
+setwd("C:\\Users\\sarah\\Documents\\PhD\\All data files")
+df <- read.csv("finaldata5.csv",header =TRUE)
+data<-df[,c(35:40,51:64)]
+dataset<-df[,c(35:40,51:64)]
+control<-data[(data$Condition==0),]
+intervention<-data[(data$Condition==1),]
+
+```
+
+Factoring
+```{r}
+dataset$Gender= factor(dataset$Gender,levels = c(1,2,3,4,5,6),labels = c("male","female","trans male", "trans female", "genderqueer", "different identity"))
+dataset$Ethnicity= factor(dataset$Ethnicity,levels = c(1:14),labels = c("White Caucasian","White Mexican","White Sephardic Jew", "East Asian", "South Asian", "Middle Eastern", "Native American", "Latino/Hispanic", "Caribbean", "Black British", "African", "Black African American", "Mixed", "Other"))
+dataset$Sexuality= factor(dataset$Sexuality,levels = c(1,2,3,4,5),labels = c("heterosexual","bisexual","homosexual", "asexual", "other sexuality"))
+dataset$Victim_known= factor(dataset$Victim_known,levels = c(0,1,2,3),labels = c("prefer not to answer","don't know victim","friend or family member victim", "victim themself"))
+dataset$False_acc_known= factor(dataset$False_acc_known,levels = c(0,1,2,3),labels = c("prefer not to answer","don't know accused","friend or family member accused", "accused themself"))
+dataset$Verdict= factor(dataset$Verdict,levels = c(0,1),labels = c("Not Guilty", "Guilty"))
+dataset$Likert_verdict= factor(dataset$Likert_verdict,levels = c(1,2,3,4,5,6,7),labels = c("Completely unlikely", "Moderately unlikely", "Slightly unlikely", "Neither likely nor unlikely", "Slightly likely", "Moderately likely", "Completely likely"))
+dataset$Credibility= factor(dataset$Credibility,levels = c(1,2,3,4,5,6,7),labels = c("Completely incredible", "Moderately incredible", "Slightly incredible", "Neither credible nor incredible", "Slightly credible", "Moderately credible", "Completely credible"))
+dataset$Responsibility= factor(dataset$Responsibility,levels = c(1,2,3,4,5,6,7),labels = c("Completely unresponsible", "Moderately unresponsible", "Slightly unresponsible", "Neither responsible nor unresponsible", "Slightly responsible", "Moderately responsible", "Completely responsible"))
+dataset$Empathy= factor(dataset$Empathy,levels = c(1,2,3,4,5),labels = c("Not at all", "Slightly", "Moderately", "A lot", "Completely"))
+dataset$Condition=factor(dataset$Condition,levels= c(0,1),labels= c("Control", "Intervention"))
+```
+
+
+Moderation variables
+```{r}
+Cond<-rec(data$Condition, rec="0=-0.5;1=0.5")
+LI_c<-data$LItotal-mean(data$LItotal)
+SA_c<-data$SAtotal-mean(data$SAtotal)
+NR_c<-data$NRtotal-mean(data$NRtotal)
+Condition<-data$Condition
+Cred<-data$Credibility
+Resp<-data$Responsibility
+Emp<-data$Empathy
+
+
+
+LI_cond<-LI_c*Condition
+SA_cond<-SA_c*Condition
+NR_cond<-NR_c*Condition
+moddata<-data[,c(11:16,19)]
+moddata<-cbind(moddata, LI_c, SA_c, NR_c, LI_cond, SA_cond, NR_cond)
+```
+
+
+
+# Grouped barcharts
+
+```{r}
+vergroup<-ggplot(data=dataset, aes(x=Verdict, fill=Condition))
+vergrouped<-vergroup+geom_histogram(stat="Count", position= "dodge", aes(x=as.factor(Verdict), fill=as.factor(Condition))) +
+  theme_classic(base_size = 10) + 
+  scale_y_continuous( breaks= seq(0,150,25)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(x = "Verdict Decisions", y= "Frequency" )+
+  scale_fill_manual(values = c("deepskyblue3", "palegreen3"))
+vergrouped
+ggsave("vergrouped.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+```{r}
+likvergroup<-ggplot(data=dataset, aes(x=Likert_verdict, fill=Condition))
+likvergrouped<-likvergroup+geom_histogram(stat="Count", position= "dodge", aes(x=as.factor(Likert_verdict), fill=as.factor(Condition))) +
+  theme_classic(base_size = 10) + 
+  scale_y_continuous( breaks= seq(0,150,25)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(x = "Guilt Likelihood Rating", y= "Frequency" )+
+  scale_fill_manual(values = c("deepskyblue3", "palegreen3"))
+likvergrouped
+ggsave("likvergrouped.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+```{r}
+credgroup<-ggplot(data=dataset, aes(x=Credibility, fill=Condition))
+credgrouped<-credgroup+geom_histogram(stat="Count", position= "dodge", aes(x=as.factor(Credibility), fill=as.factor(Condition))) +
+  theme_classic(base_size = 10) + 
+  scale_y_continuous( breaks= seq(0,150,25)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(x = "Credibility Rating", y= "Frequency" )+
+  scale_fill_manual(values = c("deepskyblue3", "palegreen3"))
+credgrouped
+ggsave("credgrouped.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+```{r}
+respgroup<-ggplot(data=dataset, aes(x=Responsibility, fill=Condition))
+respgrouped<-respgroup+geom_histogram(stat="Count", position= "dodge", aes(x=as.factor(Responsibility), fill=as.factor(Condition))) +
+  theme_classic(base_size = 10) + 
+  scale_y_continuous( breaks= seq(0,150,25)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(x = "Responsibility Rating", y= "Frequency" )+
+  scale_fill_manual(values = c("deepskyblue3", "palegreen3"))
+respgrouped
+ggsave("respgrouped.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+```{r}
+empgroup<-ggplot(data=dataset, aes(x=Empathy, fill=Condition))
+empgrouped<-empgroup+geom_histogram(stat="Count", position= "dodge", aes(x=as.factor(Empathy), fill=as.factor(Condition))) +
+  theme_classic(base_size = 10) + 
+  scale_y_continuous( breaks= seq(0,150,25)) +
+  theme(axis.text.x = element_text(angle = 45, hjust=1)) + 
+  labs(x = "Empathy Rating", y= "Frequency" )+
+  scale_fill_manual(values = c("deepskyblue3", "palegreen3"))
+empgrouped
+ggsave("empgrouped.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+# Simple Slopes
+
+## Path A
+
+LI-> Credibility
+```{r}
+credlm <- lm(Credibility ~ LItotal * Condition, data = data)
+summary(credlm)
+confint(credlm)
+```
+
+
+```{r}
+summary(data$LItotal)
+sd(data$LItotal)
+
+mod_table1 <- effect(term = "LItotal:Condition", mod = credlm, x.var = "LItotal", xlevels = list(Condition = c(0,1), LI_c=seq(6,40,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+Condlabel <- Condition %>% recode(`0` = "Control", `1` = "Intervention")
+kable(mod_table1)
+```
+
+### plot1
+```{r}
+ssc<-data %>% 
+  ggplot(mapping = aes(x = LItotal, y = Credibility)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = mod_table1, mapping = aes(x = LItotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = mod_table1, mapping = aes(x = LItotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(moddata$LItotal, n=6)) +
+  scale_y_continuous(breaks = pretty(moddata$Credibility)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 15) +
+  labs(x = "VL scores", y= "Credibility") +
+  coord_cartesian(xlim =c(5, 30))
+
+ssc
+ggsave("LIcred.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+SA -> Responsibility
+```{r}
+resplm <- lm(Responsibility ~ SAtotal * Condition, data = moddata)
+summary(resplm)
+confint(resplm)
+```
+
+```{r}
+summary(data$SAtotal)
+sd(data$SAtotal)
+
+mod_table2 <- effect(term = "SAtotal:Condition", mod = resplm, x.var = "SAtotal", xlevels = list(Condition = c(0,1), SAtotal=seq(4,22,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+kable(mod_table2)
+```
+###plot2
+```{r}
+ssr<-moddata %>% 
+  ggplot(mapping = aes(x = SAtotal, y = Responsibility)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = mod_table2, mapping = aes(x = SAtotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = mod_table2, mapping = aes(x = SAtotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(moddata$SAtotal, n=4)) +
+  scale_y_continuous(breaks = pretty(moddata$Responsibility)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "right")+
+  labs(x = "VA scores", y= "Responsibility") + 
+  coord_cartesian(xlim =c(4, 20))
+
+ssr
+ggsave("SAresp.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+
+NR-> Empathy
+```{r}
+emplm <- lm(Empathy ~ NRtotal * Condition, data = moddata)
+summary(emplm)
+confint(emplm)
+```
+
+```{r}
+summary(data$NRtotal)
+sd(data$NRtotal)
+
+mod_table3 <- effect(term = "NRtotal:Condition", mod = emplm, x.var = "NRtotal", xlevels = list(Condition = c(0,1), NRtotal=seq(4,19,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+
+kable(mod_table3)
+```
+###plot3
+```{r}
+sse<-moddata %>% 
+  ggplot(mapping = aes(x = NRtotal, y = Empathy)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = mod_table3, mapping = aes(x = NRtotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = mod_table3, mapping = aes(x = NRtotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = c(5, 10, 15, 20)) +
+  scale_y_continuous(breaks = pretty(moddata$Empathy)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "right")+
+  labs(x = "NR scores", y= "Empathy") +
+  coord_cartesian(xlim =c(4, 20))
+
+
+sse
+ggsave("NRemp.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+
+## Path B
+
+Empathy -> Verdict
+```{r}
+evblm <- lm(Verdict ~ Empathy * Condition, data = data)
+```
+
+```{r}
+evblm_table <- effect(term = "Empathy:Condition", mod = evblm, x.var = "Empathy", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+###plot4
+```{r}
+empverbinary<-data %>% 
+  ggplot(mapping = aes(x = Empathy, y = Verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = evblm_table, mapping = aes(x = Empathy, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = evblm_table, mapping = aes(x = Empathy, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Empathy)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "top")
+empverbinary
+
+ggsave("empver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+
+```
+
+
+Resp -> Verdict 
+```{r}
+rvblm <- lm(Verdict ~ Responsibility * Condition, data = data)
+```
+
+```{r}
+rvblm_table <- effect(term = "Responsibility:Condition", mod = rvblm, x.var = "Responsibility", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+###plot5
+```{r}
+respverbinary<-data %>% 
+  ggplot(mapping = aes(x = Responsibility, y = Verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = rvblm_table, mapping = aes(x = Responsibility, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = rvblm_table, mapping = aes(x = Responsibility, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Responsibility)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 20) +
+  theme(legend.position = "top")
+ggsave("respver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+
+Cred -> Verdict 
+```{r}
+cvblm <- lm(Verdict ~ Credibility * Condition, data = data)
+```
+
+
+```{r}
+cvblm_table <- effect(term = "Credibility:Condition", mod = cvblm, x.var = "Credibility", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+###plot6
+```{r}
+credverbinary<-data %>% 
+  ggplot(mapping = aes(x = Credibility, y = Verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = cvblm_table, mapping = aes(x = Credibility, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = cvblm_table, mapping = aes(x = Credibility, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Credibility)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 20) +
+  theme(legend.position = "top")
+ggsave("credver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+## Path B Likert
+Cred-> Likert Verdict
+```{r}
+cvlm <- lm(Likert_verdict ~ Credibility * Condition, data = data)
+```
+
+
+```{r}
+cvlm_table <- effect(term = "Credibility:Condition", mod = cvlm, x.var = "Credibility", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+
+```{r}
+credver<-data %>% 
+  ggplot(mapping = aes(x = Credibility, y = Likert_verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = cvlm_table, mapping = aes(x = Credibility, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = cvlm_table, mapping = aes(x = Credibility, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Credibility)) +
+  scale_y_continuous(breaks = pretty(data$Likert_verdict)) +
+  scale_color_manual(values = c("cyan3", "deeppink2")) +
+  scale_fill_manual(values = c("cyan3", "deeppink2")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("credver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+Resp-> Likert Verdict
+```{r}
+rvlm <- lm(Likert_verdict ~ Responsibility * Condition, data = data)
+```
+
+```{r}
+rvlm_table <- effect(term = "Responsibility:Condition", mod = rvlm, x.var = "Responsibility", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+```{r}
+respver<-data %>% 
+  ggplot(mapping = aes(x = Responsibility, y = Likert_verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = rvlm_table, mapping = aes(x = Responsibility, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = rvlm_table, mapping = aes(x = Responsibility, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Responsibility)) +
+  scale_y_continuous(breaks = pretty(data$Likert_verdict)) +
+  scale_color_manual(values = c("cyan3", "deeppink2")) +
+  scale_fill_manual(values = c("cyan3", "deeppink2")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("respver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+Emp-> Likert Verdict
+```{r}
+evlm <- lm(Likert_verdict ~ Empathy * Condition, data = data)
+```
+
+```{r}
+evlm_table <- effect(term = "Empathy:Condition", mod = evlm, x.var = "Empathy", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+```{r}
+empver<-data %>% 
+  ggplot(mapping = aes(x = Empathy, y = Likert_verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = evlm_table, mapping = aes(x = Empathy, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = evlm_table, mapping = aes(x = Empathy, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$Empathy)) +
+  scale_y_continuous(breaks = pretty(data$Likert_verdict)) +
+  scale_color_manual(values = c("cyan3", "deeppink2")) +
+  scale_fill_manual(values = c("cyan3", "deeppink2")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("empver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+
+## Path C
+```{r}
+savlm <- lm(Verdict ~ SAtotal * Condition, data = data)
+```
+
+```{r}
+savlm_table <- effect(term = "SAtotal:Condition", mod = savlm, x.var = "SAtotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+###plot7
+
+
+```{r}
+SAver<-data %>% 
+  ggplot(mapping = aes(x = SAtotal, y = Verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = savlm_table, mapping = aes(x = SAtotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = savlm_table, mapping = aes(x = SAtotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$SAtotal, n=4)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "right")+
+  labs(x = "VA scores", y= "Verdict") + 
+  coord_cartesian(xlim =c(4, 20))
+
+
+SAver
+ggsave("SAver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+
+```{r}
+livlm <- lm(Verdict ~ LItotal * Condition, data = data)
+```
+
+```{r}
+livlm_table <- effect(term = "LItotal:Condition", mod = livlm, x.var = "LItotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+###plot8
+```{r}
+
+LIver<-data %>% 
+  ggplot(mapping = aes(x = LItotal, y = Verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = livlm_table, mapping = aes(x = LItotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = livlm_table, mapping = aes(x = LItotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$LItotal, n=6)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "right")+
+  labs(x = "VL scores", y= "Verdict")+ 
+  coord_cartesian(xlim =c(5, 30))
+
+LIver
+
+ggsave("LIver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+
+```{r}
+nrvlm <- lm(Verdict ~ NRtotal * Condition, data = data)
+```
+
+```{r}
+nrvlm_table <- effect(term = "NRtotal:Condition", mod = nrvlm, x.var = "NRtotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+###plot9
+```{r}
+NRver<-data %>% 
+  ggplot(mapping = aes(x = NRtotal, y = Verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = nrvlm_table, mapping = aes(x = NRtotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = nrvlm_table, mapping = aes(x = NRtotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$NRtotal, n=)) +
+  scale_y_continuous(breaks = pretty(data$Verdict)) +
+  scale_color_manual(values = c("blue", "red")) +
+  scale_fill_manual(values = c("blue", "red")) +
+  theme_classic(base_size = 15) +
+  theme(legend.position = "right")+
+  labs(x = "NR scores", y= "Verdict")+ 
+  coord_cartesian(xlim =c(4, 20))
+
+NRver
+
+ggsave("NRver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\All data files" )
+```
+
+
+## Path C Likert
+```{r}
+salvlm <- lm(Likert_verdict ~ SAtotal * Condition, data = data)
+```
+
+
+```{r}
+salvlm_table <- effect(term = "SAtotal:Condition", mod = salvlm, x.var = "SAtotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+
+```{r}
+salver<-data %>% 
+  ggplot(mapping = aes(x = SAtotal, y = Likert_verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = salvlm_table, mapping = aes(x = SAtotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = salvlm_table, mapping = aes(x = SAtotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$SAtotal)) +
+  scale_y_continuous(breaks = pretty(data$Likert_verdict)) +
+  scale_color_manual(values = c("cyan3", "deeppink2")) +
+  scale_fill_manual(values = c("cyan3", "deeppink2")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("salver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+```{r}
+lilvlm <- lm(Likert_verdict ~ LItotal * Condition, data = data)
+```
+
+```{r}
+lilvlm_table <- effect(term = "LItotal:Condition", mod = lilvlm, x.var = "LItotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+
+```{r}
+lilver<-data %>% 
+  ggplot(mapping = aes(x = LItotal, y = Likert_verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = lilvlm_table, mapping = aes(x = LItotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = lilvlm_table, mapping = aes(x = LItotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$LItotal)) +
+  scale_y_continuous(breaks = pretty(data$Likert_verdict)) +
+  scale_color_manual(values = c("cyan3", "deeppink2")) +
+  scale_fill_manual(values = c("cyan3", "deeppink2")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("lilver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
+
+
+
+```{r}
+nrlvlm <- lm(Likert_verdict ~ NRtotal * Condition, data = data)
+```
+
+```{r}
+nrlvlm_table <- effect(term = "NRtotal:Condition", mod = nrlvlm, x.var = "NRtotal", xlevels = list(Condition = c(0,1))) %>%
+  as_tibble %>%
+  mutate(Condlabel = Condition %>% recode(`0` = "Control", `1` = "Intervention"))
+```
+
+
+```{r}
+nrlver<-data %>% 
+  ggplot(mapping = aes(x = NRtotal, y = Likert_verdict)) +
+  geom_point(mapping = aes(color = Condlabel)) +
+  geom_line(data = nrlvlm_table, mapping = aes(x = NRtotal, y = fit, linetype = Condlabel)) +
+  geom_ribbon(data = nrlvlm_table, mapping = aes(x = NRtotal, y = fit, ymin = lower, ymax = upper, fill = Condlabel), alpha = 0.5) +
+  scale_x_continuous(breaks = pretty(data$NRtotal)) +
+  scale_y_continuous(breaks = pretty(data$Likert_verdict)) +
+  scale_color_manual(values = c("cyan3", "deeppink2")) +
+  scale_fill_manual(values = c("cyan3", "deeppink2")) +
+  theme_classic(base_size = 10) +
+  theme(legend.position = "top")
+ggsave("nrlver.jpg",path= "C:\\Users\\sarah\\Documents\\PhD\\Study 4 Data" )
+```
